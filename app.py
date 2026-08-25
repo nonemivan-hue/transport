@@ -34,6 +34,10 @@ from app.models import (
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = "transport_cards_secret_key_change_in_production"
+app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 minutes session timeout
+
+# Store for active sessions: {user_id: last_activity_timestamp}
+active_sessions = {}
 
 # Document number prefixes by type
 DOC_PREFIXES = {
@@ -100,6 +104,15 @@ def inject_globals():
     user = None
     if "user_id" in session:
         user = get_employee_by_id(session["user_id"])
+        # Update last activity time
+        active_sessions[user["id"]] = datetime.now()
+    
+    # Get list of currently active employees (worked in the last 35 minutes)
+    from datetime import timedelta
+    active_threshold = datetime.now() - timedelta(minutes=35)
+    active_employee_ids = [uid for uid, ts in active_sessions.items() if ts >= active_threshold]
+    active_employees = [get_employee_by_id(uid) for uid in active_employee_ids if get_employee_by_id(uid)]
+    
     return {
         "card_statuses": CARD_STATUSES,
         "document_types": DOCUMENT_TYPES,
@@ -107,7 +120,8 @@ def inject_globals():
         "current_user": user,
         "is_admin": user and "admin" in user.get("roles", []),
         "is_issue_user": is_issue_user(),
-        "is_reports_user": is_reports_user()
+        "is_reports_user": is_reports_user(),
+        "active_employees": active_employees
     }
 
 
@@ -127,6 +141,8 @@ def login():
         if user and user.get("password") == password:
             session["user_id"] = user["id"]
             session["user_name"] = user.get("full_name", "")
+            session.permanent = True
+            active_sessions[user["id"]] = datetime.now()
             log_action(user["id"], "LOGIN", f"User {login_name} logged in")
             flash(f"Добро пожаловать, {user.get('full_name', '')}!", "success")
             return redirect(url_for("index"))
@@ -137,7 +153,11 @@ def login():
 @app.route("/logout")
 def logout():
     if "user_id" in session:
-        log_action(session["user_id"], "LOGOUT", "User logged out")
+        user_id = session["user_id"]
+        log_action(user_id, "LOGOUT", "User logged out")
+        # Remove from active sessions
+        if user_id in active_sessions:
+            del active_sessions[user_id]
     session.clear()
     flash("Вы вышли из системы", "info")
     return redirect(url_for("login"))
