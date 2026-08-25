@@ -154,6 +154,22 @@
             <a class="nav-link {% if request.endpoint == 'backup_index' %}active{% endif %}" href="{{ url_for('backup_index') }}">
                 <i class="bi bi-cloud-arrow-up"></i> Резервное копирование
             </a>
+            <!-- Active employees block -->
+            <div class="mt-3 px-3">
+                <div class="text-uppercase" style="font-size:0.7rem;opacity:0.6;">Сейчас работают</div>
+                {% if active_employees %}
+                    <ul class="list-unstyled mt-1" style="font-size:0.85rem;">
+                        {% for emp in active_employees %}
+                            <li class="mb-1">
+                                <i class="bi bi-circle-fill text-success" style="font-size:0.5rem;"></i>
+                                {{ emp.full_name }}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="mt-1 text-muted" style="font-size:0.85rem;">Нет активных сотрудников</div>
+                {% endif %}
+            </div>
             {% endif %}
         </nav>
         <div class="mt-auto p-3 border-top border-secondary">
